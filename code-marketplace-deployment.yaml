@@ -1,0 +1,130 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: code-marketplace-extensions
+  namespace: coder
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: code-marketplace
+  namespace: coder
+  labels:
+    app: code-marketplace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: code-marketplace
+  template:
+    metadata:
+      labels:
+        app: code-marketplace
+    spec:
+      initContainers:
+      # Download the code-marketplace binary
+      - name: download-binary
+        image: alpine:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            apk add --no-cache wget ca-certificates
+            wget https://github.com/coder/code-marketplace/releases/latest/download/code-marketplace-linux-amd64 -O /tmp/code-marketplace
+            chmod +x /tmp/code-marketplace
+        volumeMounts:
+        - name: binary
+          mountPath: /tmp
+      containers:
+      - name: code-marketplace
+        image: alpine:latest
+        command:
+          - /tmp/code-marketplace
+          - server
+          - --extensions-dir
+          - /extensions
+          - --address
+          - 0.0.0.0:8080
+        ports:
+        - containerPort: 8080
+          name: http
+        volumeMounts:
+        - name: extensions
+          mountPath: /extensions
+        - name: binary
+          mountPath: /tmp
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      volumes:
+      - name: extensions
+        persistentVolumeClaim:
+          claimName: code-marketplace-extensions
+      - name: binary
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: code-marketplace
+  namespace: coder
+spec:
+  selector:
+    app: code-marketplace
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: code-marketplace
+  namespace: coder
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: marketplace.localhost
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: code-marketplace
+            port:
+              number: 8080
+  tls:
+  - hosts:
+    - marketplace.localhost
+    secretName: marketplace-tls

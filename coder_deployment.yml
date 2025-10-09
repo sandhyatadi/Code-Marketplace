@@ -1,0 +1,35 @@
+Name : coder
+Namespace : coder
+CreationTimestamp: Fri, 22 Aug 2025 06:47:43 -400
+Labels: app.kubernetes.io/instance=coder
+        app.kubernetes.io/name=coder
+        app.kubernetes.io/version=2.23.1
+Annotations: deployment.kubernetes.io/revision:22
+Selector: app.kubernetes.io/instance=coder, app.kubernetes.io/name=coder
+Replicas: 1 desired | 1 updated | 1 totao | 1 available | 0 available
+StrategyType: RollingUpdate
+MinReadySeconds: 0
+Pod Template:
+  Labels: app.kubernetes.io/instance=coder
+        app.kubernetes.io/name=coder
+        app.kubernetes.io/version=2.23.1
+  Service Account: coder
+  Containers:
+    coder:
+    Image: 308.......
+    Port: 8080/TCP(http)
+    Host Port: 0/TCP(http)
+    Limits:
+      cpu: 4
+      memory: 8Gi
+    Requests:
+      cpu: 2
+      memory: 4Gi
+    Liveness: http-get http://:http/healthz deplay=0s timeout=1s period=10s 
+    Readines: http-get http://:http/healthz deplay=0s timeout=1s period=10s 
+    Environment:
+      CODER_HTTP_ADDRESS: 0.0.0.0:8080
+      CODER_DERP_SERVER_RELAY_URL: http://$(KUBE_POD_IP):8080
+      
+
+

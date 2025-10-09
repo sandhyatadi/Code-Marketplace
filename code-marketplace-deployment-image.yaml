@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: marketplace-extensions
+  namespace: coder
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: code-marketplace
+  namespace: coder
+  labels:
+    app: code-marketplace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: code-marketplace
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: code-marketplace
+    spec:
+      containers:
+      - name: code-marketplace
+        image: ghcr.io/coder/code-marketplace:v2.4.0
+        args:
+          - server
+          - --extensions-dir=/extensions
+          - --address=0.0.0.0:8080
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        volumeMounts:
+        - name: extensions
+          mountPath: /extensions
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: extensions
+        persistentVolumeClaim:
+          claimName: marketplace-extensions
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: code-marketplace
+  namespace: coder
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: code-marketplace
